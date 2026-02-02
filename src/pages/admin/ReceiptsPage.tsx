@@ -1,0 +1,270 @@
+import { useState, useMemo } from 'react';
+import { 
+  FileText,
+  Download,
+  Printer,
+  Calendar
+} from 'lucide-react';
+import AdminLayout from '@/components/AdminLayout';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useDues, useMembers } from '@/hooks/useFirebaseData';
+import { format, parseISO } from 'date-fns';
+
+const ReceiptsPage = () => {
+  const { dues } = useDues();
+  const { members } = useMembers();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+
+  const paidDues = useMemo(() => {
+    return dues
+      .filter(due => due.status === 'paid' && due.receiptNumber)
+      .sort((a, b) => new Date(b.paidDate!).getTime() - new Date(a.paidDate!).getTime());
+  }, [dues]);
+
+  const filteredReceipts = useMemo(() => {
+    let filtered = paidDues;
+
+    if (selectedMonth !== 'all') {
+      filtered = filtered.filter(due => due.month === selectedMonth);
+    }
+
+    if (searchQuery) {
+      filtered = filtered.filter(due =>
+        due.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        due.receiptNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [paidDues, selectedMonth, searchQuery]);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set(paidDues.map(due => due.month));
+    return Array.from(months).sort().reverse();
+  }, [paidDues]);
+
+  const printReceipt = (due: typeof paidDues[0]) => {
+    const member = members.find(m => m.id === due.memberId);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Receipt - ${due.receiptNumber}</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              padding: 40px; 
+              max-width: 600px; 
+              margin: 0 auto;
+            }
+            .header { 
+              text-align: center; 
+              border-bottom: 2px solid #f97316; 
+              padding-bottom: 20px; 
+              margin-bottom: 30px;
+            }
+            .header h1 { 
+              color: #f97316; 
+              margin: 0;
+              font-size: 28px;
+            }
+            .header p { 
+              color: #666; 
+              margin: 5px 0;
+            }
+            .receipt-number {
+              background: #fff7ed;
+              padding: 10px 20px;
+              border-radius: 8px;
+              display: inline-block;
+              margin-bottom: 30px;
+            }
+            .details {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 30px;
+            }
+            .detail-item {
+              padding: 10px;
+              background: #f9f9f9;
+              border-radius: 8px;
+            }
+            .detail-item label {
+              color: #666;
+              font-size: 12px;
+              display: block;
+            }
+            .detail-item span {
+              font-weight: bold;
+              font-size: 16px;
+            }
+            .amount {
+              text-align: center;
+              padding: 20px;
+              background: #f97316;
+              color: white;
+              border-radius: 8px;
+              margin-bottom: 30px;
+            }
+            .amount label {
+              font-size: 14px;
+            }
+            .amount span {
+              font-size: 32px;
+              font-weight: bold;
+              display: block;
+            }
+            .footer {
+              text-align: center;
+              color: #666;
+              font-size: 12px;
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Shri Hanumant Library</h1>
+            <p>74XH+3HW, Ramuvapur, Mahmudabad, UP 261203</p>
+            <p>Phone: +91 79913 04874</p>
+          </div>
+
+          <div style="text-align: center;">
+            <div class="receipt-number">
+              <strong>Receipt #${due.receiptNumber}</strong>
+            </div>
+          </div>
+
+          <div class="details">
+            <div class="detail-item">
+              <label>Member Name</label>
+              <span>${due.memberName}</span>
+            </div>
+            <div class="detail-item">
+              <label>Email</label>
+              <span>${member?.email || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <label>Month</label>
+              <span>${format(new Date(due.month + '-01'), 'MMMM yyyy')}</span>
+            </div>
+            <div class="detail-item">
+              <label>Payment Date</label>
+              <span>${format(new Date(due.paidDate!), 'dd MMM yyyy')}</span>
+            </div>
+          </div>
+
+          <div class="amount">
+            <label>Amount Paid</label>
+            <span>₹${due.amount}</span>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for being a valued member!</p>
+            <p>This is a computer-generated receipt.</p>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  return (
+    <AdminLayout 
+      title="Receipts" 
+      searchPlaceholder="Search receipts..."
+      onSearch={setSearchQuery}
+    >
+      {/* Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by month" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Months</SelectItem>
+              {availableMonths.map((month) => (
+                <SelectItem key={month} value={month}>
+                  {format(new Date(month + '-01'), 'MMMM yyyy')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <p className="text-muted-foreground">
+            {filteredReceipts.length} receipt{filteredReceipts.length !== 1 ? 's' : ''} found
+          </p>
+        </div>
+      </div>
+
+      {/* Receipts Grid */}
+      {filteredReceipts.length === 0 ? (
+        <div className="card-elevated p-12 text-center">
+          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No receipts found</p>
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredReceipts.map((due) => (
+            <div key={due.id} className="card-elevated p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Receipt</p>
+                  <p className="font-mono font-semibold text-primary">{due.receiptNumber}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-success" />
+                </div>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Member</span>
+                  <span className="font-medium">{due.memberName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Month</span>
+                  <span>{format(new Date(due.month + '-01'), 'MMM yyyy')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Amount</span>
+                  <span className="font-bold text-lg">₹{due.amount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Paid On</span>
+                  <span className="text-sm">{format(new Date(due.paidDate!), 'dd MMM yyyy')}</span>
+                </div>
+              </div>
+
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={() => printReceipt(due)}
+              >
+                <Printer className="w-4 h-4" />
+                Print Receipt
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </AdminLayout>
+  );
+};
+
+export default ReceiptsPage;

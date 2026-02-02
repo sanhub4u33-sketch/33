@@ -1,16 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth, database } from '@/lib/firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { 
+  User,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
 import { ref, get } from 'firebase/database';
-import { Member } from '@/types/library';
+import { auth, database } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
-  userRole: 'admin' | 'member' | null;
-  memberData: Member | null;
+  userRole: 'admin' | 'user' | null;
   loading: boolean;
-  loginAsAdmin: (email: string, password: string) => Promise<void>;
-  loginAsMember: (memberId: string, password: string) => Promise<Member>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -18,89 +20,62 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'admin' | 'member' | null>(null);
-  const [memberData, setMemberData] = useState<Member | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'user' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        // Check if admin
+        // Check if user is admin (owner@gmail.com)
         if (user.email === 'owner@gmail.com') {
           setUserRole('admin');
+        } else {
+          // Check if user exists in members
+          const memberRef = ref(database, `members/${user.uid}`);
+          const snapshot = await get(memberRef);
+          if (snapshot.exists()) {
+            setUserRole('user');
+          } else {
+            setUserRole(null);
+          }
         }
       } else {
         setUserRole(null);
-        setMemberData(null);
       }
       setLoading(false);
     });
 
-    // Check for member session
-    const memberSession = localStorage.getItem('memberSession');
-    if (memberSession) {
-      const data = JSON.parse(memberSession);
-      setMemberData(data);
-      setUserRole('member');
-      setLoading(false);
-    }
-
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
-  const loginAsAdmin = async (email: string, password: string) => {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    if (result.user.email === 'owner@gmail.com') {
-      setUserRole('admin');
-    } else {
-      throw new Error('Unauthorized access');
-    }
-  };
-
-  const loginAsMember = async (memberId: string, password: string): Promise<Member> => {
-    const memberRef = ref(database, `members/${memberId}`);
-    const snapshot = await get(memberRef);
-    
-    if (!snapshot.exists()) {
-      throw new Error('Member not found');
-    }
-
-    const member = snapshot.val() as Member;
-    
-    if (member.password !== password) {
-      throw new Error('Invalid password');
-    }
-
-    if (member.status !== 'active') {
-      throw new Error('Account is inactive');
-    }
-
-    setMemberData({ ...member, id: memberId });
-    setUserRole('member');
-    localStorage.setItem('memberSession', JSON.stringify({ ...member, id: memberId }));
-    
-    return { ...member, id: memberId };
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
   const logout = async () => {
     await signOut(auth);
-    localStorage.removeItem('memberSession');
-    setUser(null);
     setUserRole(null);
-    setMemberData(null);
+  };
+
+  const value = {
+    user,
+    userRole,
+    loading,
+    login,
+    logout,
   };
 
   return (
-    <AuthContext.Provider value={{ user, userRole, memberData, loading, loginAsAdmin, loginAsMember, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

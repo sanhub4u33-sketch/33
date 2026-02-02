@@ -3,35 +3,46 @@ export interface Member {
   name: string;
   email: string;
   phone: string;
-  address: string;
+  address?: string;
   joinDate: string;
-  seatNumber: string;
+  seatNumber?: string;
+  shift?: string;
   monthlyFee: number;
   status: 'active' | 'inactive';
   createdAt: string;
-  password?: string;
 }
 
-export interface Attendance {
+export interface AttendanceRecord {
   id: string;
   memberId: string;
   memberName: string;
   date: string;
   entryTime: string;
-  exitTime: string | null;
-  status: 'present' | 'left';
+  exitTime?: string;
+  duration?: number; // in minutes
 }
 
-export interface Due {
+export interface DuesRecord {
   id: string;
   memberId: string;
   memberName: string;
+  month: string; // YYYY-MM format
   amount: number;
   dueDate: string;
-  paidDate: string | null;
-  status: 'pending' | 'paid';
-  period: string;
-  createdAt: string;
+  paidDate?: string;
+  status: 'pending' | 'paid' | 'overdue';
+  receiptNumber?: string;
+}
+
+export interface Receipt {
+  id: string;
+  receiptNumber: string;
+  memberId: string;
+  memberName: string;
+  amount: number;
+  month: string;
+  paidDate: string;
+  paymentMethod: 'cash' | 'upi' | 'other';
 }
 
 export interface Activity {
@@ -40,14 +51,5 @@ export interface Activity {
   memberId: string;
   memberName: string;
   timestamp: string;
-  description: string;
-}
-
-export interface AdminStats {
-  totalMembers: number;
-  activeMembers: number;
-  presentToday: number;
-  pendingDues: number;
-  totalDuesAmount: number;
-  collectedThisMonth: number;
+  details?: string;
 }
