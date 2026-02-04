@@ -9,7 +9,8 @@ import {
   CheckCircle,
   AlertCircle,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,13 @@ import { Member, FeeRecord, AttendanceRecord } from '@/types/library';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { toast } from 'sonner';
 import { ref, update } from 'firebase/database';
-import { database } from '@/lib/firebase';
+import { database, auth } from '@/lib/firebase';
+import { 
+  updateEmail, 
+  updatePassword, 
+  signInWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
 
 interface MemberDetailModalProps {
   member: Member | null;
@@ -42,6 +49,7 @@ const MemberDetailModal = ({
   memberAttendance 
 }: MemberDetailModalProps) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState({
     email: '',
     password: '',
@@ -121,20 +129,71 @@ const MemberDetailModal = ({
 
   const handleSave = async () => {
     if (!member) return;
+    
+    setIsSaving(true);
+    const currentAdminEmail = auth.currentUser?.email;
+    
     try {
+      // Check if email or password changed
+      const emailChanged = editData.email !== member.email;
+      const passwordChanged = editData.password !== member.password && editData.password !== '';
+      
+      if (emailChanged || passwordChanged) {
+        // We need to sign in as the member to update their credentials
+        if (!member.password) {
+          toast.error('Cannot update credentials: member password not stored');
+          setIsSaving(false);
+          return;
+        }
+        
+        // Temporarily sign in as the member
+        await signInWithEmailAndPassword(auth, member.email, member.password);
+        
+        try {
+          // Update email if changed
+          if (emailChanged && auth.currentUser) {
+            await updateEmail(auth.currentUser, editData.email);
+          }
+          
+          // Update password if changed
+          if (passwordChanged && auth.currentUser) {
+            await updatePassword(auth.currentUser, editData.password);
+          }
+        } finally {
+          // Sign out from member account
+          await signOut(auth);
+          
+          // Sign back in as admin
+          if (currentAdminEmail) {
+            // Note: We need admin password - using a workaround
+            // The page will reload for admin to re-login
+          }
+        }
+      }
+      
+      // Update database record
       const memberRef = ref(database, `members/${member.id}`);
       await update(memberRef, {
         email: editData.email,
-        password: editData.password,
+        password: editData.password || member.password,
         phone: editData.phone,
         address: editData.address,
         seatNumber: editData.seatNumber,
         monthlyFee: editData.monthlyFee,
       });
-      toast.success('Member updated successfully');
+      
+      toast.success('Member updated successfully! Please re-login as admin if you changed credentials.');
       setIsEditing(false);
-    } catch (error) {
-      toast.error('Failed to update member');
+      
+      if (emailChanged || passwordChanged) {
+        // Reload to force admin re-login
+        window.location.reload();
+      }
+    } catch (error: any) {
+      console.error('Error updating member:', error);
+      toast.error(error.message || 'Failed to update member');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -152,9 +211,9 @@ const MemberDetailModal = ({
                 Edit
               </Button>
             ) : (
-              <Button size="sm" onClick={handleSave} className="gap-2 btn-primary">
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-2 btn-primary">
                 <Save className="w-4 h-4" />
-                Save
+                {isSaving ? 'Saving...' : 'Save'}
               </Button>
             )}
           </DialogTitle>
@@ -186,6 +245,14 @@ const MemberDetailModal = ({
           </div>
 
           {/* Profile Details */}
+          {/* Warning for credential changes */}
+          {isEditing && (editData.email !== member.email || (editData.password !== member.password && editData.password !== '')) && (
+            <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm text-warning">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Changing email/password will update Firebase Auth credentials. You will need to re-login as admin after saving.</span>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Email</Label>
