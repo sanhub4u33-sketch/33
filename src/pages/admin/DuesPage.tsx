@@ -145,7 +145,9 @@ const DuesPage = () => {
     const rows = paidInPeriod.map(due => [
       due.receiptNumber || '',
       due.memberName,
-      `${format(parseISO(due.periodStart), 'dd MMM')} - ${format(parseISO(due.periodEnd), 'dd MMM yyyy')}`,
+      due.periodStart && due.periodEnd 
+        ? `${format(parseISO(due.periodStart), 'dd MMM')} - ${format(parseISO(due.periodEnd), 'dd MMM yyyy')}`
+        : 'N/A',
       `₹${due.amount}`,
       due.paidDate ? format(parseISO(due.paidDate), 'dd MMM yyyy') : ''
     ]);
@@ -288,10 +290,12 @@ const DuesPage = () => {
                       </div>
                     </td>
                     <td className="p-4 text-sm">
-                      {format(parseISO(due.periodStart), 'dd MMM')} - {format(parseISO(due.periodEnd), 'dd MMM yyyy')}
+                      {due.periodStart && due.periodEnd 
+                        ? `${format(parseISO(due.periodStart), 'dd MMM')} - ${format(parseISO(due.periodEnd), 'dd MMM yyyy')}`
+                        : 'Period not set'}
                     </td>
                     <td className="p-4 font-semibold">₹{due.amount}</td>
-                    <td className="p-4">{format(parseISO(due.dueDate), 'dd MMM yyyy')}</td>
+                    <td className="p-4">{due.dueDate ? format(parseISO(due.dueDate), 'dd MMM yyyy') : 'Not set'}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         {getStatusIcon(due.status)}
