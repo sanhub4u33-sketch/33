@@ -34,7 +34,7 @@ import MemberDetailModal from '@/components/admin/MemberDetailModal';
 
 const MembersPage = () => {
   const { members, loading, addMember, deleteMember } = useMembers();
-  const { dues, createInitialFee, getMemberDues } = useDues();
+  const { dues, createInitialFee, getMemberDues, markAsPaid } = useDues();
   const { getMemberAttendance } = useAttendance();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -72,12 +72,19 @@ const MembersPage = () => {
 
   const handleAddMember = async () => {
     try {
-      // Create Firebase Auth user
+      // Store current admin user before creating member
+      const currentAdmin = auth.currentUser;
+      const adminEmail = currentAdmin?.email;
+
+      // Create Firebase Auth user for the new member
       await createUserWithEmailAndPassword(
         auth, 
         formData.email, 
         formData.password
       );
+
+      // Sign out the newly created member (Firebase auto-signs in new users)
+      await auth.signOut();
 
       const joinDate = new Date().toISOString().split('T')[0];
 
@@ -106,6 +113,7 @@ const MembersPage = () => {
       }
 
       toast.success(`Member added! Login credentials:\nEmail: ${formData.email}\nPassword: ${formData.password}`);
+      toast.info('You have been signed out. Please log in again as admin.');
       setShowAddDialog(false);
       resetForm();
     } catch (error: any) {
@@ -340,6 +348,7 @@ const MembersPage = () => {
         onOpenChange={setShowDetailModal}
         memberDues={selectedMember ? getMemberDues(selectedMember.id) : []}
         memberAttendance={selectedMember ? getMemberAttendance(selectedMember.id) : []}
+        onMarkAsPaid={markAsPaid}
       />
     </AdminLayout>
   );

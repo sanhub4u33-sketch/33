@@ -34,6 +34,7 @@ interface MemberDetailModalProps {
   onOpenChange: (open: boolean) => void;
   memberDues: FeeRecord[];
   memberAttendance: AttendanceRecord[];
+  onMarkAsPaid?: (dueId: string, memberId: string, memberName: string, amount: number, periodEnd: string) => Promise<string>;
 }
 
 const MemberDetailModal = ({ 
@@ -41,7 +42,8 @@ const MemberDetailModal = ({
   open, 
   onOpenChange,
   memberDues,
-  memberAttendance 
+  memberAttendance,
+  onMarkAsPaid
 }: MemberDetailModalProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,6 +57,7 @@ const MemberDetailModal = ({
   });
   const [currentMonth] = useState(new Date());
   const [sendingReset, setSendingReset] = useState(false);
+  const [payingDueId, setPayingDueId] = useState<string | null>(null);
 
   // Calendar data
   const monthStart = startOfMonth(currentMonth);
@@ -161,6 +164,19 @@ const MemberDetailModal = ({
       toast.error(e?.message || 'Failed to send reset email');
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  const handlePayDue = async (due: FeeRecord) => {
+    if (!member || !onMarkAsPaid) return;
+    setPayingDueId(due.id);
+    try {
+      const receiptNumber = await onMarkAsPaid(due.id, member.id, member.name, due.amount, due.periodEnd);
+      toast.success(`Payment recorded! Receipt: ${receiptNumber}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to record payment');
+    } finally {
+      setPayingDueId(null);
     }
   };
 
@@ -395,9 +411,9 @@ const MemberDetailModal = ({
                 {memberDues.map((due) => (
                   <div 
                     key={due.id}
-                    className="flex items-center justify-between p-3 bg-background rounded-lg"
+                    className="flex items-center justify-between p-3 bg-background rounded-lg gap-3"
                   >
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground text-sm">
                         {due.periodStart && due.periodEnd && safeParseISO(due.periodStart) && safeParseISO(due.periodEnd)
                           ? `${format(parseISO(due.periodStart), 'dd MMM')} - ${format(parseISO(due.periodEnd), 'dd MMM yyyy')}`
@@ -419,6 +435,16 @@ const MemberDetailModal = ({
                         {due.status}
                       </span>
                     </div>
+                    {(due.status === 'pending' || due.status === 'overdue') && onMarkAsPaid && (
+                      <Button
+                        size="sm"
+                        className="btn-primary"
+                        disabled={payingDueId === due.id}
+                        onClick={() => handlePayDue(due)}
+                      >
+                        {payingDueId === due.id ? 'Paying...' : 'Pay'}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
