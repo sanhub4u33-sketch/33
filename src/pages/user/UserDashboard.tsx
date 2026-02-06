@@ -26,6 +26,9 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 import NotificationBell from '@/components/notifications/NotificationBell';
 import ChatModule from '@/components/chat/ChatModule';
 import { useChat } from '@/hooks/useChatAndNotifications';
+import StudyTimer from '@/components/user/StudyTimer';
+import Leaderboard from '@/components/user/Leaderboard';
+import FeedbackForm from '@/components/user/FeedbackForm';
 
 // Image compression utility
 const compressImage = (file: File, maxSizeKB: number = 100): Promise<string> => {
@@ -452,6 +455,12 @@ const UserDashboard = () => {
           </div>
         </div>
 
+        {/* Study Timer & Leaderboard Row */}
+        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
+          <StudyTimer memberId={memberData.id} memberName={memberData.name} />
+          <Leaderboard currentMemberId={memberData.id} />
+        </div>
+
         <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Attendance Calendar */}
           <div className="card-elevated p-4 sm:p-6">
@@ -598,6 +607,9 @@ const UserDashboard = () => {
               </div>
             )}
           </div>
+
+          {/* Feedback Form */}
+          <FeedbackForm memberId={memberData.id} memberName={memberData.name} />
         </div>
       </main>
 
