@@ -92,3 +92,44 @@ export interface Notification {
 export interface LibrarySettings {
   chatEnabled: boolean;
 }
+
+// Study Timer & Goals
+export interface StudySession {
+  id: string;
+  memberId: string;
+  date: string; // YYYY-MM-DD
+  duration: number; // in minutes
+  type: 'pomodoro' | 'custom';
+  completedAt: string;
+}
+
+export interface StudyGoal {
+  id: string;
+  memberId: string;
+  dailyGoalMinutes: number;
+  weeklyGoalMinutes: number;
+  updatedAt: string;
+}
+
+// Leaderboard & Streaks
+export interface MemberStreak {
+  memberId: string;
+  currentStreak: number;
+  longestStreak: number;
+  lastAttendanceDate: string;
+  totalDaysPresent: number;
+}
+
+// Feedback System
+export interface Feedback {
+  id: string;
+  memberId: string;
+  memberName: string;
+  type: 'suggestion' | 'complaint' | 'appreciation' | 'other';
+  subject: string;
+  message: string;
+  status: 'pending' | 'reviewed' | 'resolved';
+  adminResponse?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
